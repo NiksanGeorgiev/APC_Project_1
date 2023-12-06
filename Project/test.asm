@@ -29,7 +29,10 @@ section .bss
     buffer: resb 24000          ; Buffer big enough to store the input file
     digitString: resb 100       ; Stores the string representation of a number
     digitIndex: resb 8          ; Enough to store a value of a register
-
+    lineNum: resb 8             ; Will be storing the integer value of the number on the line
+    blockSum: resb 8            ; Will be storing the block sum
+    highest: resb 8             ; Will be storing the highest num sum
+    
 ;-----------------MACROS-----------------
 ; !DISCLAIMER! NASM specific syntax
 ; @param - number to be printed
@@ -54,14 +57,15 @@ _start:
 
     ;Register initialisation
     mov rdi, buffer             ; Load address of the input string
-    xor rax, rax                ; Will be used for storing the number read on a line
-    xor rbx, rbx                ; Will be used for storing the sum of block of numbers
-    xor rcx, rcx                ; Will be used for keeping track of the highest sum
+    xor rax, rax                
+    mov [lineNum], rax          ; Will be used for storing the number read on a line
+    mov [blockSum], rax         ; Will be used for storing the sum of block of numbers
+    mov [highest], rax          ; Will be used for keeping track of the highest sum
     xor r8, r8                  ; Will be used for representing the length of a number
     
     call _find_highest
 
-    print_number rax                   ; Print the highest value
+    print_number rax            ; Print the highest value
     exit
 
 ;-------------------------------------------
@@ -136,6 +140,7 @@ print_num_loop:
 ;-----------------START - FIND MAXIMUM-----------------
 _find_highest:
     
+    mov rax, [lineNum]          ; Load the value of the line into rax
     movzx rsi, byte [rdi]       ; Read a character from the input
     
     cmp rsi, 0                  ; Check if the character is the null terminator (end of string)
@@ -154,7 +159,7 @@ _find_highest:
 multiply:
     mov r9, 10                  ; Multiplier
     mul r9                      ; Multiplying the value of rax by 10
-
+    
 addition:
     sub rsi, ASCII0             ; Convert ASCII character to integer
     add rax, rsi                ; Add to the sum
@@ -163,48 +168,74 @@ increment:
     inc rdi                     ; Move to the next character in the input string
     inc r8                      ; Increment the number of digits in the number on the current line
     
-    jmp _find_highest            ; Continue reading characters
+    mov [lineNum], rax          ; Update the value of the line number
+    jmp _find_highest           ; Continue reading characters
 
 check_empty_line:
     ; Actions done at the end of a line
     xor r8, r8                  ; Reset the number of digits
+    mov rbx, [blockSum]         ; Load the block sum into rbx
+    mov rax, [lineNum]          ; Load the line number into rax
     add rbx, rax                ; Add the value of the line to the sum of the block
     xor rax, rax                ; Reseting the line sum
+    mov [blockSum], rbx         ; Updating the block sum
+    mov [lineNum], rax          ; Updating the line number
 
-
-    movzx rsi, byte [rdi - 2]   ; Get the value value 2 characters behind the current
+    ; Mac file formating (without \r)
+    movzx rsi, byte [rdi - 1]   ; Get the value value 1 character behind the current
     cmp rsi, NEW_LINE           ; Check if it is \n    
     je update_block_sum         ; If yes, update block sum and reset block sum
     
-    inc rdi                     ; Point to next character
-    jmp _find_highest            ; Continue reading characters
+    ; WIndows line formatting
+    cmp rsi, CAR_RET
+    je check_windows_line
 
+check_windows_line:
+    movzx rsi, byte [rdi - 2]   ; Get the value value 2 characters behind the current
+    cmp rsi, NEW_LINE           ; Check if it is \n    
+    je update_block_sum         ; If yes, update block sum and reset block sum
+
+    inc rdi                     ; Point to next character
+    jmp _find_highest           ; Continue reading characters
 
 update_block_sum:
+    mov rbx, [blockSum]         ; Load the block sum into rbx
+    mov rcx, [highest]          ; Load the highest num into rcx
     cmp rbx, rcx                ; Compare and update maximum sum
     jg update_maximum_sum
 
     xor rbx, rbx                ; Reset block sum for the next block
+    mov [blockSum], rbx         ; Update block sum
     inc rdi                     ; Move to the next character in the input string
-    jmp _find_highest            ; Continue reading characters
+    jmp _find_highest           ; Continue reading characters
 
 update_maximum_sum:
+    mov rbx, [blockSum]         ; Load the block sum into rbx
+    mov rcx, [highest]          ; Load the highest num into rcx
     mov rcx, rbx                ; Update block sum
     xor rbx, rbx                ; Reset block sum for the next block
+    mov [blockSum], rbx         ; Update vlock sum
+    mov [highest], rcx          ; Update highest num
     inc rdi                     ; Move to the next character in the input string
-    jmp _find_highest            ; Continue reading characters
+    jmp _find_highest           ; Continue reading characters
 
 end_reading:
+    mov rbx, [blockSum]         ; Load the block sum into rbx
+    mov rcx, [highest]          ; Load the highest num into rcx
     cmp rbx, rcx                ; Last comparisson
     jg swap                     ; If last block sum is bigger then swap values
     jmp end                     ; Else go to the end
 
 swap:
+    mov rbx, [blockSum]         ; Load the block sum into rbx
+    mov rcx, [highest]          ; Load the highest num into rcx
     mov rcx, rbx                ; Update maximum value     
     xor rbx, rbx                ; Reset rbx
+    mov [blockSum], rbx         ; Update vlock sum
+    mov [highest], rcx          ; Update highest num
 
 end:
-    mov rax, rcx                ; Common convention for functions to return result in rax
+    mov rax, [highest]          ; Common convention for functions to return result in rax
     ret
 
 ;-----------------END - FIND MAXIMUM-----------------
