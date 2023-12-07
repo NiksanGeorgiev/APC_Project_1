@@ -32,7 +32,10 @@ section .bss
     lineNum: resb 8             ; Will be storing the integer value of the number on the line
     blockSum: resb 8            ; Will be storing the block sum
     highest: resb 8             ; Will be storing the highest num sum
-    
+    num1: resb 8                ; Will be used to store one of the three highest numbers
+    num2: resb 8                ; Will be used to store one of the three highest numbers
+    num3: resb 8                ; Will be used to store one of the three highest numbers
+
 ;-----------------MACROS-----------------
 ; !DISCLAIMER! NASM specific syntax
 ; @param - number to be printed
@@ -55,7 +58,7 @@ _start:
 
     call _read_file
 
-    ;Register initialisation
+    ; Register initialisation
     mov rdi, buffer             ; Load address of the input string
     xor rax, rax                
     mov [lineNum], rax          ; Will be used for storing the number read on a line
@@ -64,6 +67,10 @@ _start:
     xor r8, r8                  ; Will be used for representing the length of a number
     
     call _find_highest
+    ; TODO - print highest
+    print_number rax
+    call _sum_top_three
+    ; TODO - print sum of top 3
 
     print_number rax            ; Print the highest value
     exit
@@ -72,14 +79,14 @@ _start:
 ;-----------------FUNCTIONS-----------------
 ;-------------------------------------------
 _read_file:
-    ;Opening the file to get the file descriptor
+    ; Opening the file to get the file descriptor
     mov rax, SYS_OPEN           ; Type of operation (syscall number) 
     mov rdi, path               ; Path to file
     mov rsi, O_RDONLY           ; Mode of opening
     mov rdx, 0644o              ; file permission which doesn't really matter when reading a file
     syscall
 
-    ;Reading the file and storing it in a buffer
+    ; Reading the file and storing it in a buffer
     mov rdi, rax                ; File descriptor (returned automatically in rax)
     mov rax, SYS_READ           ; Type of operation (syscall number) 
     mov rsi, buffer             ; Buffer to store the file
@@ -199,6 +206,18 @@ check_windows_line:
     jmp _find_highest           ; Continue reading characters
 
 update_block_sum:
+    call _min                   ; Get address of the samllest out of the three highest numbers
+    mov rbx, [rax]              ; Store the value of the number
+    mov rcx, [blockSum]         ; Get the block sum so it can be compared
+    cmp rbx, rcx                ; If the block sum is greater - update the 3 highest
+    jl update_three_highest
+    jmp post_three_update       ; Skip update if not needed
+
+update_three_highest:
+    mov [rax], rcx              ; Move the block sum into the address
+    xor rax, rax                ; Reset rax
+
+post_three_update:
     mov rbx, [blockSum]         ; Load the block sum into rbx
     mov rcx, [highest]          ; Load the highest num into rcx
     cmp rbx, rcx                ; Compare and update maximum sum
@@ -239,3 +258,52 @@ end:
     ret
 
 ;-----------------END - FIND MAXIMUM-----------------
+
+
+;-----------------START - FIND MINIMUM-----------------
+; Find the minimum value out of num1, num2 and num3
+; @return - the address of the corresponding variable
+_min:
+    ; Move numbers into registers so that they can be compared
+    mov rbx, [num1]
+    mov rcx, [num2]
+    mov rdx, [num3]
+    xor rax, rax                ; Reset rax
+
+    cmp rbx, rcx                ; Check if num1 is smaller than num2
+    jle rbx_min                 
+    jmp rcx_min
+
+rbx_min:
+    cmp rbx, rdx                ; Check if num1 is smaller than num3
+    jle rbx_store
+    jmp rdx_store
+
+rcx_min:
+    cmp rcx, rdx                ; Check if num2 is smaller than num3
+    jle rcx_store
+    jmp rdx_store
+
+rbx_store:
+    mov rax, num1               ; num1 is the min out of the 3
+    jmp return
+rcx_store:
+    mov rax, num2               ; num2 is the min out of the 3
+    jmp return
+rdx_store:
+    mov rax, num3               ; num3 is the min out of the 3
+    jmp return
+
+return:
+    ret
+;-----------------END - FIND MINIMUM-----------------
+
+_sum_top_three:
+xor rax, rax
+mov rbx, [num1]
+add rax, rbx
+mov rbx, [num2]
+add rax, rbx
+mov rbx, [num3]
+add rax, rbx
+ret
