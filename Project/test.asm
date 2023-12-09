@@ -24,6 +24,13 @@ section .data
     path dd "input.txt"         ; Path to the file containing the input
     size dw 24000               ; Size of the bugffer that is going to be used for storing the file
 
+    ; Console output
+    introduction db "Elves' expedition traditionally goes on foot. As your boats approach land, the Elves begin taking inventory of their supplies. One important consideration is food - in particular, the number of Calories each Elf is carrying",NEW_LINE,0
+    introduction1 db "The Elves take turns writing down the number of Calories contained by the various meals. that they've brought with them, one item per line. Each Elf separates their own inventory from the previous Elf's inventory (if any) by a blank line.",NEW_LINE,0
+    highest_answer db "The highest calorie count is:", NEW_LINE, 0
+    top_three_answer db "The sum of the 3 highest calorie counts is:", NEW_LINE, 0
+    
+
 ;-----------------MEMORY RESERVATIONS-----------------
 section .bss
     buffer: resb 24000          ; Buffer big enough to store the input file
@@ -50,34 +57,47 @@ section .bss
     syscall
 %endmacro
 
+; @param - the address of the string
+%macro print_string 1
+    mov rax, %1
+    call _print_string
+%endmacro
+
 ;-----------------PROGRAM-----------------
 section .text
     global _start               
 
 _start:
 
+    print_string introduction
+    print_string introduction1
+    
     call _read_file
 
     ; Register initialisation
-    mov rdi, buffer             ; Load address of the input string
     xor rax, rax                
     mov [lineNum], rax          ; Will be used for storing the number read on a line
     mov [blockSum], rax         ; Will be used for storing the sum of block of numbers
     mov [highest], rax          ; Will be used for keeping track of the highest sum
     xor r8, r8                  ; Will be used for representing the length of a number
     
+    ; Find and print highest sum
+    print_string highest_answer
+    mov rdi, buffer             ; Load address of the input string
     call _find_highest
-    ; TODO - print highest
-    print_number rax
-    call _sum_top_three
-    ; TODO - print sum of top 3
+    print_number rax      ; Print the highest value
 
-    print_number rax            ; Print the highest value
+    ; Find and print the sum of the top 3
+    print_string top_three_answer
+    call _sum_top_three
+    print_number rax            ; Print the sum (rax is holding the value)
     exit
 
 ;-------------------------------------------
 ;-----------------FUNCTIONS-----------------
 ;-------------------------------------------
+
+;-----------------START - READ FILE-----------------
 _read_file:
     ; Opening the file to get the file descriptor
     mov rax, SYS_OPEN           ; Type of operation (syscall number) 
@@ -94,6 +114,28 @@ _read_file:
     syscall
 
     ret
+;-----------------END - READ FILE-----------------
+
+;-----------------START - PRINT STRING-----------------
+; Input: rax as pointer to string
+_print_string:
+    push rax
+    mov rbx, 0
+print_string_loop:
+    inc rax
+    inc rbx
+    mov cl, [rax]
+    cmp cl, 0
+    jne print_string_loop
+ 
+    mov rax, 1
+    mov rdi, 1
+    pop rsi
+    mov rdx, rbx
+    syscall
+ 
+    ret
+;-----------------END - PRINT STRING-----------------
 
 ;-----------------START - PRINT NUMBER-----------------
 _print_num:
@@ -193,7 +235,7 @@ check_empty_line:
     cmp rsi, NEW_LINE           ; Check if it is \n    
     je update_block_sum         ; If yes, update block sum and reset block sum
     
-    ; WIndows line formatting
+    ; Windows line formatting
     cmp rsi, CAR_RET
     je check_windows_line
 
@@ -305,5 +347,5 @@ add rax, rbx
 mov rbx, [num2]
 add rax, rbx
 mov rbx, [num3]
-add rax, rbx
+add rax, rbx                    ; Storing the result in rax to meet common conventions
 ret
