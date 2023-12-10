@@ -65,6 +65,9 @@ section .bss
     call _print_string
 %endmacro
 
+
+    
+; %endmacro
 ;-----------------PROGRAM-----------------
 section .text
     global _start               
@@ -75,11 +78,8 @@ _start:
     print_string introduction1
     
     print_string manual_input_prompt
-    call _manual_input
+    call _manual_input          ; Returns whether the user wants manual or file input
 
-      
-
-debug:
     mov rax, [manual]
     cmp rax, 'm'                ; Check what type of input was chosen
     je manual_input
@@ -89,11 +89,11 @@ manual_input:
     xor rax, rax
     mov [l_count], rax          ; Will be used for letter count of manual input  
     print_string manual_rules   ; Indicating how to use the manual input
-    call _read_console
+    call _read_console          ; Reads input from the console
     jmp main_logic
 
 file_input:
-    call _read_file
+    call _read_file             ; Reads input from a file
 
 main_logic:
     ; Register initialisation
@@ -107,7 +107,7 @@ main_logic:
     print_string highest_answer
     mov rdi, buffer             ; Load address of the input string
     call _find_highest
-    print_number rax      ; Print the highest value
+    print_number rax            ; Print the highest value
 
     ; Find and print the sum of the top 3
     print_string top_three_answer
@@ -122,16 +122,16 @@ main_logic:
 _manual_input:
 validate:
     
-    mov rax, SYS_READ       ; Mode for reading
-    mov rdi, STDIN          ; File descriptor of the console
-    mov rsi, manual         ; Buffer to store the input   
-    mov rdx, 1              ; Number of bytes to be read
-    syscall
+    mov rax, SYS_READ           ; Mode for reading
+    mov rdi, STDIN              ; File descriptor of the console
+    mov rsi, manual             ; Buffer to store the input   
+    mov rdx, 1                  ; Number of bytes to be read
+    syscall 
 
-    mov rdx, [manual]        ; Store the input in rdx
-    cmp rdx, 'm'             ; 155 - 'm' in ascii
-    je return_input
-    cmp rdx, 'f'             ; 146 - 'f' in ascii
+    mov rdx, [manual]           ; Store the input in rdx
+    cmp rdx, 'm'                ; 155 - 'm' in ascii
+    je return_input 
+    cmp rdx, 'f'                ; 146 - 'f' in ascii
     jne validate
 
 return_input:
@@ -399,7 +399,12 @@ _read_console:
     mov rdx, 60                 ; Number of bytes to be read
     syscall
 
-    ; count the length of the line (\n inclusive)
+    ; Check if the line is valid
+    call _validate_line         
+    cmp rax, 0                  ; Invalid
+    je _read_console            ; Ignore the line and input another one
+
+    ; Count the length of the line (\n inclusive)
     xor rax, rax                ; Reset rax
     mov rdi, line               ; Load the address of the line in rdi   
     mov rbx, buffer             ; Load the address of the buffer in rbx
@@ -416,7 +421,9 @@ add_char:
     mov [buffer + rcx + rax], rsi ; Store the character in the buffer
     inc rax                     ; Incrementing rax (incrementing the count of characters in the line)
     inc rdi                     ; Incrementing rdi (moving to the next character in the line)
-    jmp add_char    
+    cmp rsi, NEW_LINE           ; Check if it is a new line    
+    je end_line
+    jmp add_char   
     
 
 end_line:
@@ -432,3 +439,40 @@ end_buffer:
     ret
 
 ;-----------------END - MANUAL INPUT-----------------
+
+;-----------------START - VALIDATE LINE-----------------
+; Validates whether the line consists of only integers
+; @return - 0 if invalid and 1 if valid
+_validate_line:
+    mov rdi, line               ; Load the address of the line to check in rdi
+
+validation_loop:
+    movzx rsi, byte [rdi]       ; Get current character
+    
+    cmp rsi, 0                  ; End of line - successful
+    je valid
+
+    cmp rsi, 10
+    je valid
+
+    cmp rsi, 'n'
+    je valid
+
+
+    cmp rsi, ASCII0             ; Smaller than the ascii value of 0
+    jl invalid
+    
+    cmp rsi, ASCII0 + 9         ; Bigger than the ascii value of 9
+    jg invalid
+
+    inc rdi                     ; Get to the next character
+    jmp validation_loop
+
+invalid:
+    xor rax, rax
+    jmp end_validation
+valid:
+    mov rax, 1
+end_validation:
+    ret 
+;-----------------END - VALIDATE LINE-----------------
