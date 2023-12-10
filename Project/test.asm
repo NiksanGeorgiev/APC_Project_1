@@ -23,16 +23,18 @@ ASCII0      equ 48              ; 0 in ASCII
 section .data
     path dd "input.txt"         ; Path to the file containing the input
     size dw 24000               ; Size of the bugffer that is going to be used for storing the file
-
+    l_count dd 0                ; Will store the number of characters during manual input       
     ; Console output
     introduction db "Elves' expedition traditionally goes on foot. As your boats approach land, the Elves begin taking inventory of their supplies. One important consideration is food - in particular, the number of Calories each Elf is carrying",NEW_LINE,0
     introduction1 db "The Elves take turns writing down the number of Calories contained by the various meals. that they've brought with them, one item per line. Each Elf separates their own inventory from the previous Elf's inventory (if any) by a blank line.",NEW_LINE,0
     highest_answer db "The highest calorie count is:", NEW_LINE, 0
     top_three_answer db "The sum of the 3 highest calorie counts is:", NEW_LINE, 0
-    
+    manual_input_prompt db "Type m for manual f for file input", NEW_LINE, 0
+    manual_rules db "Input meals on different lines. Separate elfs with an empty line. Type n to stop inputing", NEW_LINE, 0
 
 ;-----------------MEMORY RESERVATIONS-----------------
 section .bss
+    manual: resb 1              ; Will store whether the input will be manual
     buffer: resb 24000          ; Buffer big enough to store the input file
     digitString: resb 100       ; Stores the string representation of a number
     digitIndex: resb 8          ; Enough to store a value of a register
@@ -42,7 +44,7 @@ section .bss
     num1: resb 8                ; Will be used to store one of the three highest numbers
     num2: resb 8                ; Will be used to store one of the three highest numbers
     num3: resb 8                ; Will be used to store one of the three highest numbers
-
+    line: resb 40               ; Will store the line during manual input
 ;-----------------MACROS-----------------
 ; !DISCLAIMER! NASM specific syntax
 ; @param - number to be printed
@@ -72,8 +74,28 @@ _start:
     print_string introduction
     print_string introduction1
     
+    print_string manual_input_prompt
+    call _manual_input
+
+      
+
+debug:
+    mov rax, [manual]
+    cmp rax, 'm'                ; Check what type of input was chosen
+    je manual_input
+    jmp file_input
+
+manual_input:
+    xor rax, rax
+    mov [l_count], rax          ; Will be used for letter count of manual input  
+    print_string manual_rules   ; Indicating how to use the manual input
+    call _read_console
+    jmp main_logic
+
+file_input:
     call _read_file
 
+main_logic:
     ; Register initialisation
     xor rax, rax                
     mov [lineNum], rax          ; Will be used for storing the number read on a line
@@ -97,6 +119,23 @@ _start:
 ;-----------------FUNCTIONS-----------------
 ;-------------------------------------------
 
+_manual_input:
+validate:
+    
+    mov rax, SYS_READ       ; Mode for reading
+    mov rdi, STDIN          ; File descriptor of the console
+    mov rsi, manual         ; Buffer to store the input   
+    mov rdx, 1              ; Number of bytes to be read
+    syscall
+
+    mov rdx, [manual]        ; Store the input in rdx
+    cmp rdx, 'm'             ; 155 - 'm' in ascii
+    je return_input
+    cmp rdx, 'f'             ; 146 - 'f' in ascii
+    jne validate
+
+return_input:
+    ret
 ;-----------------START - READ FILE-----------------
 _read_file:
     ; Opening the file to get the file descriptor
@@ -128,8 +167,8 @@ print_string_loop:
     cmp cl, 0
     jne print_string_loop
  
-    mov rax, 1
-    mov rdi, 1
+    mov rax, SYS_WRITE
+    mov rdi, STDOUT
     pop rsi
     mov rdx, rbx
     syscall
@@ -349,3 +388,47 @@ add rax, rbx
 mov rbx, [num3]
 add rax, rbx                    ; Storing the result in rax to meet common conventions
 ret
+
+;-----------------START - MANUAL INPUT-----------------
+_read_console:
+        
+    ;read a line
+    mov rax, SYS_READ           ; Mode for reading
+    mov rdi, STDIN              ; File descriptor of the console
+    mov rsi, line               ; Buffer to store the input   
+    mov rdx, 60                 ; Number of bytes to be read
+    syscall
+
+    ; count the length of the line (\n inclusive)
+    xor rax, rax                ; Reset rax
+    mov rdi, line               ; Load the address of the line in rdi   
+    mov rbx, buffer             ; Load the address of the buffer in rbx
+    mov rcx, [l_count]          ; Store the value of the letter count in rcx
+    
+add_char:
+    movzx rsi, byte [rdi]       ; Store character from the line
+    
+    cmp rsi, 'n'                ; 'n' indicates ends of input
+    je end_buffer                    
+
+    cmp rsi, 0                  ; Indicates the end of the line
+    je end_line
+    mov [buffer + rcx + rax], rsi ; Store the character in the buffer
+    inc rax                     ; Incrementing rax (incrementing the count of characters in the line)
+    inc rdi                     ; Incrementing rdi (moving to the next character in the line)
+    jmp add_char    
+    
+
+end_line:
+    add rcx, rax                ; Adding the character count of the line to the total length of the buffer
+    mov [l_count], rcx          ; Updating the character count
+    jmp _read_console  
+
+end_buffer:
+    ; Adding terminating character at the end of buffer
+    mov rax, [l_count]          
+    mov rbx, 0
+    mov [buffer + rax], rbx
+    ret
+
+;-----------------END - MANUAL INPUT-----------------
