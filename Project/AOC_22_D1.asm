@@ -25,12 +25,16 @@ section .data
     size dw 24000               ; Size of the bugffer that is going to be used for storing the file
     l_count dd 0                ; Will store the number of characters during manual input       
     ; Console output
-    introduction db "Elves' expedition traditionally goes on foot. As your boats approach land, the Elves begin taking inventory of their supplies. One important consideration is food - in particular, the number of Calories each Elf is carrying",NEW_LINE,0
-    introduction1 db "The Elves take turns writing down the number of Calories contained by the various meals. that they've brought with them, one item per line. Each Elf separates their own inventory from the previous Elf's inventory (if any) by a blank line.",NEW_LINE,0
+    introduction db "Elves' expedition traditionally goes on foot.", NEW_LINE, "As your boats approach land, the Elves begin taking inventory of their supplies.", NEW_LINE, "One important consideration is food - in particular, the number of Calories each Elf is carrying",NEW_LINE, NEW_LINE,0
+    introduction1 db "The Elves take turns writing down the number of Calories contained by the various meals",NEW_LINE, "that they've brought with them, one item per line.", NEW_LINE, "Each Elf separates their own inventory from the previous Elf's inventory (if any) by a blank line.",NEW_LINE, NEW_LINE,0
+    part1 db "PART 1:", NEW_LINE, "In case the Elves get hungry and need extra snacks, they need to know which Elf to ask.",NEW_LINE, "They'd like to know how many Calories are being carried by the Elf carrying the most Calories.", NEW_LINE, NEW_LINE, 0
+    part2 db "PART 2:", NEW_LINE, "To avoid this unacceptable situation, the Elves would instead like to know the total Calories carried", NEW_LINE, "by the top three Elves carrying the most Calories.", NEW_LINE, "That way, even if one of those Elves runs out of snacks, they still have two backups.", NEW_LINE, NEW_LINE, 0
+    example_input db "Example input:", NEW_LINE, "1000",NEW_LINE,"2000", NEW_LINE, "3000", NEW_LINE, NEW_LINE, "4000", NEW_LINE, NEW_LINE, "5000", NEW_LINE, "6000", NEW_LINE, NEW_LINE, "7000", NEW_LINE, "8000", NEW_LINE, "9000",NEW_LINE,NEW_LINE, "Highest - 24000",NEW_LINE, "Sum of 3 highest - 45000", NEW_LINE, NEW_LINE, 0
     highest_answer db "The highest calorie count is:", NEW_LINE, 0
     top_three_answer db "The sum of the 3 highest calorie counts is:", NEW_LINE, 0
-    manual_input_prompt db "Type m for manual f for file input", NEW_LINE, 0
-    manual_rules db "Input meals on different lines. Separate elfs with an empty line. Type n to stop inputing", NEW_LINE, 0
+    manual_input_prompt db "Choose (m)anual or (f)ile input", NEW_LINE, "Invalid input will be ignored", NEW_LINE, 0
+    manual_rules db "Input meals on different lines. Separate elfs with an empty line.", NEW_LINE, "(Lines not containing only integers will be ignored e.g. 123as1)", NEW_LINE, "Begin a line with 'n' to stop inputing", NEW_LINE, 0
+    cls db `\033[H\033[2J`, 0   ; ANSI escape code for "clearing" console
 
 ;-----------------MEMORY RESERVATIONS-----------------
 section .bss
@@ -54,8 +58,8 @@ section .bss
 %endmacro    
 
 %macro exit 0
-    mov rax, SYS_EXIT
-    xor rdi, rdi
+    mov rax, SYS_EXIT           ; SYscall code for exit
+    xor rdi, rdi                ; Exit code success
     syscall
 %endmacro
 
@@ -73,11 +77,7 @@ section .text
     global _start               
 
 _start:
-
-    print_string introduction
-    print_string introduction1
-    
-    print_string manual_input_prompt
+    call _print_intro           ; Prints the introduction to the program
     call _manual_input          ; Returns whether the user wants manual or file input
 
     mov rax, [manual]
@@ -86,6 +86,7 @@ _start:
     jmp file_input
 
 manual_input:
+    print_string cls            ; Clear console
     xor rax, rax
     mov [l_count], rax          ; Will be used for letter count of manual input  
     print_string manual_rules   ; Indicating how to use the manual input
@@ -113,15 +114,28 @@ main_logic:
     print_string top_three_answer
     call _sum_top_three
     print_number rax            ; Print the sum (rax is holding the value)
-    exit
+    
+    exit                        ; Exit the program
 
 ;-------------------------------------------
 ;-----------------FUNCTIONS-----------------
 ;-------------------------------------------
 
+;-----------------START - PRINT INTRO-----------------
+_print_intro:
+    print_string cls
+    print_string introduction
+    print_string introduction1
+    print_string part1
+    print_string part2
+    print_string example_input
+    print_string manual_input_prompt
+ret
+;-----------------END - PRINT INTRO-----------------
+
+;-----------------START - INPUT CHOICE-----------------
 _manual_input:
 validate:
-    
     mov rax, SYS_READ           ; Mode for reading
     mov rdi, STDIN              ; File descriptor of the console
     mov rsi, manual             ; Buffer to store the input   
@@ -129,13 +143,15 @@ validate:
     syscall 
 
     mov rdx, [manual]           ; Store the input in rdx
-    cmp rdx, 'm'                ; 155 - 'm' in ascii
+    cmp rdx, 'm'                ; Check if the input was 'm'
     je return_input 
-    cmp rdx, 'f'                ; 146 - 'f' in ascii
+    cmp rdx, 'f'                ; Check if the input was 'f'
     jne validate
 
 return_input:
     ret
+;-----------------END - INPUT CHOICE-----------------
+
 ;-----------------START - READ FILE-----------------
 _read_file:
     ; Opening the file to get the file descriptor
@@ -158,19 +174,19 @@ _read_file:
 ;-----------------START - PRINT STRING-----------------
 ; Input: rax as pointer to string
 _print_string:
-    push rax
-    mov rbx, 0
+    push rax                    ; Pushing the argument to the stack
+    xor rbx, rbx
 print_string_loop:
-    inc rax
-    inc rbx
-    mov cl, [rax]
-    cmp cl, 0
+    inc rax                     ; Used to itterate over characters
+    inc rbx                     ; Used to keep count of characters
+    mov cl, [rax]               ; Getting the current character    
+    cmp cl, 0                   ; Check if it is the end of the string
     jne print_string_loop
  
-    mov rax, SYS_WRITE
-    mov rdi, STDOUT
-    pop rsi
-    mov rdx, rbx
+    mov rax, SYS_WRITE          ; Syscall code for writing
+    mov rdi, STDOUT             ; File descriptor of the stdout
+    pop rsi                     ; Insert the pointer to the buffer
+    mov rdx, rbx                ; The number of bytes to bne printed
     syscall
  
     ret
@@ -320,6 +336,21 @@ update_maximum_sum:
     jmp _find_highest           ; Continue reading characters
 
 end_reading:
+    mov rbx, [blockSum]         ; Get block sum
+    add rbx, rax                ; Account for the last number
+    mov [blockSum], rbx         ; Update block sum
+    call _min                   ; Get address of the samllest out of the three highest numbers
+    mov rbx, [rax]              ; Store the value of the number
+    mov rcx, [blockSum]         ; Get the block sum so it can be compared
+    cmp rbx, rcx                ; If the block sum is greater - update the 3 highest
+    jl update_three
+    jmp final_check             ; Skip update if not needed
+
+update_three:
+    mov [rax], rcx              ; Move the block sum into the address
+    xor rax, rax                ; Reset rax
+
+final_check:
     mov rbx, [blockSum]         ; Load the block sum into rbx
     mov rcx, [highest]          ; Load the highest num into rcx
     cmp rbx, rcx                ; Last comparisson
@@ -330,8 +361,6 @@ swap:
     mov rbx, [blockSum]         ; Load the block sum into rbx
     mov rcx, [highest]          ; Load the highest num into rcx
     mov rcx, rbx                ; Update maximum value     
-    xor rbx, rbx                ; Reset rbx
-    mov [blockSum], rbx         ; Update vlock sum
     mov [highest], rcx          ; Update highest num
 
 end:
@@ -339,7 +368,6 @@ end:
     ret
 
 ;-----------------END - FIND MAXIMUM-----------------
-
 
 ;-----------------START - FIND MINIMUM-----------------
 ; Find the minimum value out of num1, num2 and num3
@@ -452,12 +480,11 @@ validation_loop:
     cmp rsi, 0                  ; End of line - successful
     je valid
 
-    cmp rsi, 10
+    cmp rsi, NEW_LINE           ; Checks for a new line
     je valid
 
-    cmp rsi, 'n'
+    cmp rsi, 'n'                ; Checks for 'n' which signals the end of input
     je valid
-
 
     cmp rsi, ASCII0             ; Smaller than the ascii value of 0
     jl invalid
