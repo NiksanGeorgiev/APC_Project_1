@@ -473,9 +473,11 @@ end_buffer:
 ; @return - 0 if invalid and 1 if valid
 _validate_line:
     mov rdi, line               ; Load the address of the line to check in rdi
+    movzx rsi, byte [rdi] 
 
+    cmp rsi, 'n'                ; Checks for 'n' which signals the end of input
+    je valid
 validation_loop:
-    movzx rsi, byte [rdi]       ; Get current character
     
     cmp rsi, 0                  ; End of line - successful
     je valid
@@ -483,8 +485,6 @@ validation_loop:
     cmp rsi, NEW_LINE           ; Checks for a new line
     je valid
 
-    cmp rsi, 'n'                ; Checks for 'n' which signals the end of input
-    je valid
 
     cmp rsi, ASCII0             ; Smaller than the ascii value of 0
     jl invalid
@@ -493,6 +493,7 @@ validation_loop:
     jg invalid
 
     inc rdi                     ; Get to the next character
+    movzx rsi, byte [rdi]       ; Get current character
     jmp validation_loop
 
 invalid:
